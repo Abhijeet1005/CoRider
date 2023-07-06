@@ -11,18 +11,38 @@ mongo = PyMongo(app)
 api = Api(app)
 
 
-class UserResource(Resource):
-    def get(self, user_id=None):
-        if user_id:
-            user = mongo.db.user.find_one({'_id': ObjectId(user_id)})
-            if user:
-                return jsonify(user)
-            return {'message': 'User not found'}, 404
+def endpoint(route):
+    def decorator(func):
+        app.add_url_rule(route, view_func=func, methods=["GET"])
+        app.add_url_rule(route, view_func=func, methods=["POST"])
+        app.add_url_rule(route, view_func=func, methods=["PUT"])
+        app.add_url_rule(route, view_func=func, methods=["DELETE"])
+        return func
+    return decorator
 
-        users = list(mongo.db.user.find())  # Convert the cursor to a list
+
+class UserResource(Resource):
+    @endpoint("/users")
+    def get_all_users(self):
+        users = list(mongo.db.user.find())
         return jsonify(users)
 
-    def post(self):
+    @endpoint("/users/<string:user_id>")
+    def get_user_by_id(self, user_id):
+        user = mongo.db.user.find_one({'_id': ObjectId(user_id)})
+        if user:
+            return jsonify(user)
+        return {'message': 'User not found'}, 404
+
+    @endpoint("/users/<string:user_id>/<int:age>")
+    def get_user_by_id_and_age(self, user_id, age):
+        user = mongo.db.user.find_one({'_id': ObjectId(user_id), 'age': age})
+        if user:
+            return jsonify(user)
+        return {'message': 'User not found'}, 404
+
+    @endpoint("/users")
+    def add_user(self):
         _json = request.get_json()
         _name = _json.get('name')
         _email = _json.get('email')
@@ -37,7 +57,8 @@ class UserResource(Resource):
         else:
             return {'message': 'Missing required fields'}, 400
 
-    def put(self, user_id):
+    @endpoint("/users/<string:user_id>")
+    def update_user(self, user_id):
         _json = request.get_json()
         _name = _json.get('name')
         _email = _json.get('email')
@@ -55,7 +76,8 @@ class UserResource(Resource):
         else:
             return {'message': 'Missing required fields'}, 400
 
-    def delete(self, user_id):
+    @endpoint("/users/<string:user_id>")
+    def delete_user(self, user_id):
         result = mongo.db.user.delete_one({'_id': ObjectId(user_id)})
 
         if result.deleted_count > 0:
@@ -64,7 +86,7 @@ class UserResource(Resource):
             return {'message': 'User not found'}, 404
 
 
-api.add_resource(UserResource, '/users', '/users/<string:user_id>')
+api.add_resource(UserResource, '/users')
 
 
 @app.errorhandler(404)
